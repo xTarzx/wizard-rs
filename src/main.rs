@@ -21,10 +21,26 @@ fn main() -> Result<(), eframe::Error> {
 
 struct App {
     wiz: Wizard,
-    bulbs: Vec<Bulb>,
     selected: Option<usize>,
     pilot: Pilot,
     config_path: std::path::PathBuf,
+}
+
+impl App {
+    fn load_config(&mut self) {
+        let file = std::fs::File::open(&self.config_path);
+        if let Ok(file) = file {
+            let bulbs: Vec<Bulb> = serde_json::from_reader(file).unwrap();
+            *self.wiz.bulbs.lock().unwrap() = bulbs;
+        }
+    }
+
+    fn save_config(&mut self) {
+        let file = std::fs::File::create(&self.config_path);
+        if let Ok(file) = file {
+            serde_json::to_writer(file, &self.wiz.bulbs).unwrap();
+        }
+    }
 }
 
 impl Default for App {
@@ -35,19 +51,16 @@ impl Default for App {
         config_path.pop();
         config_path.push("bulbs.json");
 
-        let mut bulbs: Vec<Bulb> = Vec::new();
-        if config_path.exists() {
-            let file = std::fs::File::open(&config_path).unwrap();
-            bulbs = serde_json::from_reader(file).unwrap();
-        }
-
-        Self {
+        let mut app = Self {
             wiz: Wizard::new(),
-            bulbs: bulbs,
             selected: None,
             pilot: Pilot::default(),
             config_path: config_path,
-        }
+        };
+
+        app.load_config();
+
+        app
     }
 }
 
@@ -56,8 +69,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Save").clicked() {
-                    let file = std::fs::File::create(&self.config_path).unwrap();
-                    serde_json::to_writer(file, &self.bulbs).unwrap();
+                    self.save_config();
                     ui.close_menu();
                 }
             })
@@ -66,29 +78,16 @@ impl eframe::App for App {
         egui::Window::new("Bulbs").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui.button("Discover").clicked() {
-                    let mut bulbs = self.wiz.discover();
-                    // map mac to name
-                    let mut map = std::collections::HashMap::new();
-                    for bulb in &self.bulbs {
-                        map.insert(bulb.mac.clone(), bulb.name.clone());
-                    }
-
-                    for bulb in bulbs.iter_mut() {
-                        if let Some(name) = map.get(&bulb.mac) {
-                            bulb.name = name.clone();
-                        }
-                    }
-
-                    self.bulbs = bulbs;
+                    self.wiz.discover();
                 }
 
                 if let Some(idx) = self.selected {
-                    let bulb = &self.bulbs[idx];
+                    let bulb = &self.wiz.bulbs.lock().unwrap()[idx];
                     ui.label(format!("{} {}", &bulb.name, &bulb.ip));
                 }
             });
 
-            for (idx, bulb) in self.bulbs.iter_mut().enumerate() {
+            for (idx, bulb) in self.wiz.bulbs.lock().unwrap().iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     ui.text_edit_singleline(&mut bulb.name);
                     if ui.button("select").clicked() {
@@ -100,7 +99,7 @@ impl eframe::App for App {
 
         egui::Window::new("Control").show(ctx, |ui| {
             if let Some(idx) = self.selected {
-                let bulb = &mut self.bulbs[idx];
+                let bulb = &self.wiz.bulbs.lock().unwrap()[idx];
                 ui.label(format!("{} {}", &bulb.name, &bulb.ip));
 
                 let brightness = ui.add(Slider::new(&mut self.pilot.brightness, 0.1..=1.0));
@@ -135,7 +134,7 @@ impl eframe::App for App {
 
         egui::Window::new("Scenes").vscroll(true).show(ctx, |ui| {
             if let Some(idx) = self.selected {
-                let bulb = &mut self.bulbs[idx];
+                let bulb = &self.wiz.bulbs.lock().unwrap()[idx];
                 ui.label(format!("{} {}", &bulb.name, &bulb.ip));
 
                 for scene in Scene::iter() {
