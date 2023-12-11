@@ -114,6 +114,7 @@ impl eframe::App for App {
                     if ui.button("on").clicked() {
                         let mut pilot = Pilot::new(Method::SetPilot);
                         pilot.set_state(true);
+                        pilot.set_brightness(self.pilot.brightness);
                         self.wiz.set_pilot(bulb.clone(), pilot);
                     }
                     if ui.button("off").clicked() {
