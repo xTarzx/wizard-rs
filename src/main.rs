@@ -19,6 +19,12 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native("WiZard", options, Box::new(|_cc| Box::<App>::default()))
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Config {
+    bulbs: Vec<Bulb>,
+    selected: Option<usize>,
+}
+
 struct App {
     wiz: Wizard,
     selected: Option<usize>,
@@ -30,7 +36,9 @@ impl App {
     fn load_config(&mut self) {
         let file = std::fs::File::open(&self.config_path);
         if let Ok(file) = file {
-            let bulbs: Vec<Bulb> = serde_json::from_reader(file).unwrap();
+            let config: Config = serde_json::from_reader(file).unwrap();
+            let bulbs: Vec<Bulb> = config.bulbs;
+            self.selected = config.selected;
             *self.wiz.bulbs.lock().unwrap() = bulbs;
         }
     }
@@ -38,7 +46,11 @@ impl App {
     fn save_config(&mut self) {
         let file = std::fs::File::create(&self.config_path);
         if let Ok(file) = file {
-            serde_json::to_writer(file, &self.wiz.bulbs).unwrap();
+            let config = Config {
+                bulbs: self.wiz.bulbs.lock().unwrap().clone(),
+                selected: self.selected,
+            };
+            serde_json::to_writer(file, &config).unwrap();
         }
     }
 }
