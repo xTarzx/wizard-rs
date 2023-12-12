@@ -36,27 +36,32 @@ impl Wizard {
     pub fn set_pilot(&self, bulb: Bulb, pilot: Pilot) {
         let data = pilot.build();
         let addr: SocketAddr = format!("{}:{}", bulb.ip, WIZARD_PORT).parse().unwrap();
-        self.socket
+        let _ = self
+            .socket
             .lock()
             .unwrap()
-            .send_to(data.to_string().as_bytes(), &addr.into())
-            .unwrap();
+            .send_to(data.to_string().as_bytes(), &addr.into());
     }
 
     pub fn cleanup(&self) {
-        self.socket
+        let _ = self
+            .socket
             .lock()
             .unwrap()
-            .shutdown(std::net::Shutdown::Both)
-            .unwrap();
+            .shutdown(std::net::Shutdown::Both);
     }
 
     pub fn discover(&mut self) {
+        // TODO: calculate broadcast address from host ip
+        // let broadcast_addr = "194.210.91.255";
+        let broadcast_addr = "192.168.1.255";
         let nbulbs = self.bulbs.clone();
         let nsocket = self.socket.clone();
         thread::spawn(move || {
             let pilot = Pilot::new(Method::GetDevInfo);
-            let addr: SocketAddr = format!("192.168.1.255:{}", WIZARD_PORT).parse().unwrap();
+            let addr: SocketAddr = format!("{}:{}", broadcast_addr, WIZARD_PORT)
+                .parse()
+                .unwrap();
             nsocket
                 .lock()
                 .unwrap()
@@ -78,10 +83,11 @@ impl Wizard {
                         let pbuf = buf.map(|c| unsafe { c.assume_init() });
                         let data = String::from_utf8(pbuf.to_vec()).unwrap();
                         let bulb = Bulb::parse(src_ip.ip().to_string(), &data);
-                        bulbs.push(bulb);
+                        if let Some(bulb) = bulb {
+                            bulbs.push(bulb);
+                        }
                     }
                     Err(_e) => {
-                        // println!("Error: {}", e);
                         break;
                     }
                 }

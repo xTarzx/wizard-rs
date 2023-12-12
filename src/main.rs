@@ -25,6 +25,15 @@ struct Config {
     selected: Option<usize>,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            bulbs: Vec::new(),
+            selected: None,
+        }
+    }
+}
+
 struct App {
     wiz: Wizard,
     selected: Option<usize>,
@@ -36,22 +45,32 @@ impl App {
     fn load_config(&mut self) {
         let file = std::fs::File::open(&self.config_path);
         if let Ok(file) = file {
-            let config: Config = serde_json::from_reader(file).unwrap();
+            let config: Config = serde_json::from_reader(file).unwrap_or_default();
             let bulbs: Vec<Bulb> = config.bulbs;
             self.selected = config.selected;
             *self.wiz.bulbs.lock().unwrap() = bulbs;
         }
     }
 
-    fn save_config(&mut self) {
+    fn save_config(&mut self) -> Result<(), ()> {
         let file = std::fs::File::create(&self.config_path);
-        if let Ok(file) = file {
-            let config = Config {
-                bulbs: self.wiz.bulbs.lock().unwrap().clone(),
-                selected: self.selected,
-            };
-            serde_json::to_writer(file, &config).unwrap();
+
+        match file {
+            Ok(file) => {
+                let config = Config {
+                    bulbs: self.wiz.bulbs.lock().unwrap().clone(),
+                    selected: self.selected,
+                };
+
+                if serde_json::to_writer(file, &config).is_err() {
+                    return Err(());
+                }
+            }
+            Err(_) => {
+                return Err(());
+            }
         }
+        Ok(())
     }
 }
 
@@ -81,7 +100,9 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Save").clicked() {
-                    self.save_config();
+                    if self.save_config().is_err() {
+                        // TODO: notify user of error somehow
+                    }
                     ui.close_menu();
                 }
             })
@@ -90,6 +111,7 @@ impl eframe::App for App {
         egui::Window::new("Bulbs").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui.button("Discover").clicked() {
+                    self.selected = None;
                     self.wiz.discover();
                 }
 

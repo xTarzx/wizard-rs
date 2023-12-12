@@ -13,23 +13,27 @@ impl Bulb {
         Bulb { ip, name, mac }
     }
 
-    pub fn parse(ip: String, data: &str) -> Bulb {
+    pub fn parse(ip: String, data: &str) -> Option<Bulb> {
         // example of data: {"method":"getDevInfo","env":"pro","result":{"mac":"a8bb50ec140e","devMac":"a8bb50ec140e","moduleName":"ESP03_SHRGB1C_01"}}
         // parse data as json and extract
         // mac
         let data = data.trim_start_matches(char::from(0));
         let data = data.trim_end_matches(char::from(0));
-        let v: Value = serde_json::from_str(data).unwrap();
+        let v: Result<Value, serde_json::Error> = serde_json::from_str(data);
+        if let Err(_e) = v {
+            return None;
+        }
+        let v = v.unwrap();
         let mac = v["result"]["mac"].to_string();
         // clean up mac
         let mac = mac.trim_start_matches('"');
         let mac = mac.trim_end_matches('"');
         let mac = mac.to_string();
 
-        Bulb {
+        Some(Bulb {
             ip: ip,
             name: mac.clone(),
             mac: mac.clone(),
-        }
+        })
     }
 }
