@@ -1,3 +1,4 @@
+use ipnet::Ipv4Net;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use local_ip_address::local_ip;
@@ -52,9 +53,10 @@ impl Wizard {
     }
 
     pub fn discover(&mut self) {
-        // TODO: calculate broadcast address from host ip
-        // let broadcast_addr = "194.210.91.255";
-        let broadcast_addr = "192.168.1.255";
+        let localip = local_ip().unwrap();
+        let network = Ipv4Net::new(localip.to_string().parse().unwrap(), 24).unwrap();
+        let broadcast_addr = network.broadcast().to_string();
+
         let nbulbs = self.bulbs.clone();
         let nsocket = self.socket.clone();
         thread::spawn(move || {
@@ -68,8 +70,6 @@ impl Wizard {
                 .send_to(pilot.build().as_bytes(), &addr.into())
                 .unwrap();
 
-            let local_ip = local_ip().unwrap();
-
             let mut bulbs: Vec<Bulb> = Vec::new();
 
             let mut buf = [MaybeUninit::new(0u8); 1024];
@@ -77,7 +77,7 @@ impl Wizard {
                 match nsocket.lock().unwrap().recv_from(&mut buf) {
                     Ok((_amt, src)) => {
                         let src_ip = src.as_socket_ipv4().unwrap();
-                        if src_ip.ip() == &local_ip {
+                        if src_ip.ip() == &localip {
                             continue;
                         }
                         let pbuf = buf.map(|c| unsafe { c.assume_init() });
