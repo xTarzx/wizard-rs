@@ -136,13 +136,24 @@ impl eframe::App for App {
                 let bulb = &self.wiz.bulbs.lock().unwrap()[idx];
                 ui.label(format!("{} {}", &bulb.name, &bulb.ip));
 
-                let brightness = ui.add(Slider::new(&mut self.pilot.brightness, 0.1..=1.0));
+                ui.horizontal(|ui| {
+                    ui.label("Dimming");
+                    let brightness = ui.add(Slider::new(&mut self.pilot.brightness, 0.1..=1.0));
+                    if brightness.changed() {
+                        let mut pilot = Pilot::new(Method::SetPilot);
+                        pilot.set_brightness(self.pilot.brightness);
+                        self.wiz.set_pilot(bulb.clone(), pilot);
+                    }
+                });
 
-                if brightness.changed() {
-                    let mut pilot = Pilot::new(Method::SetPilot);
-                    pilot.set_brightness(self.pilot.brightness);
-                    self.wiz.set_pilot(bulb.clone(), pilot);
-                }
+                ui.horizontal(|ui| {
+                    ui.label("Speed");
+                    let speed = ui.add(Slider::new(&mut self.pilot.speed, 0.2..=2.0));
+                    if speed.changed() {
+                        let mut pilot = Pilot::new(Method::SetPilot);
+                        pilot.set_speed(self.pilot.speed);
+                    }
+                });
 
                 ui.horizontal(|ui| {
                     if ui.button("on").clicked() {
@@ -177,6 +188,7 @@ impl eframe::App for App {
                         let mut pilot = Pilot::new(Method::SetPilot);
                         pilot.set_scene(scene);
                         pilot.set_brightness(self.pilot.brightness);
+                        pilot.set_speed(self.pilot.speed);
                         self.wiz.set_pilot(bulb.clone(), pilot);
                     }
                 }

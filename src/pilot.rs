@@ -24,6 +24,8 @@ pub struct Pilot {
     pub rgb: Option<[f32; 3]>,
     pub scene: Option<Scene>,
     pub brightness: f32,
+    pub speed: f32,
+    pub temperature: Option<f32>,
 }
 
 impl Pilot {
@@ -34,6 +36,8 @@ impl Pilot {
             rgb: None,
             scene: None,
             brightness: 1.0,
+            speed: 0.9,
+            temperature: None,
         }
     }
 
@@ -55,6 +59,10 @@ impl Pilot {
 
     pub fn set_brightness(&mut self, brightness: f32) {
         self.brightness = brightness;
+    }
+
+    pub fn set_speed(&mut self, speed: f32) {
+        self.speed = speed;
     }
 
     pub fn build(&self) -> String {
@@ -84,6 +92,18 @@ impl Pilot {
                     params.insert(String::from("r"), Value::Number(r.into()));
                     params.insert(String::from("g"), Value::Number(g.into()));
                     params.insert(String::from("b"), Value::Number(b.into()));
+                }
+
+                params.insert(
+                    String::from("speed"),
+                    Value::Number(((self.speed * 100.0) as i32).into()),
+                );
+
+                if let Some(temperature) = self.temperature {
+                    params.insert(
+                        String::from("temperature"),
+                        Value::Number(((temperature * 100.0) as i32).into()),
+                    );
                 }
 
                 if let Some(scene) = self.scene {
