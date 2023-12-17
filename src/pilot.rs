@@ -33,7 +33,7 @@ impl Pilot {
             state: true,
             rgb: None,
             scene: None,
-            brightness: 100.0,
+            brightness: 1.0,
         }
     }
 
@@ -98,6 +98,7 @@ impl Pilot {
         }
 
         let json = Value::Object(map);
+        dbg!(json.to_string());
         json.to_string()
     }
 }
