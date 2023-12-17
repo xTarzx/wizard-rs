@@ -23,9 +23,8 @@ pub struct Pilot {
     pub state: bool,
     pub rgb: Option<[f32; 3]>,
     pub scene: Option<Scene>,
-    pub brightness: f32,
-    pub speed: f32,
-    pub temperature: Option<f32>,
+    pub brightness: f32, // 10-100
+    pub speed: f32,      // 20-200
 }
 
 impl Pilot {
@@ -37,7 +36,6 @@ impl Pilot {
             scene: None,
             brightness: 1.0,
             speed: 0.9,
-            temperature: None,
         }
     }
 
@@ -98,13 +96,6 @@ impl Pilot {
                     String::from("speed"),
                     Value::Number(((self.speed * 100.0) as i32).into()),
                 );
-
-                if let Some(temperature) = self.temperature {
-                    params.insert(
-                        String::from("temperature"),
-                        Value::Number(((temperature * 100.0) as i32).into()),
-                    );
-                }
 
                 if let Some(scene) = self.scene {
                     params.insert(

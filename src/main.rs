@@ -148,11 +148,7 @@ impl eframe::App for App {
 
                 ui.horizontal(|ui| {
                     ui.label("Speed");
-                    let speed = ui.add(Slider::new(&mut self.pilot.speed, 0.2..=2.0));
-                    if speed.changed() {
-                        let mut pilot = Pilot::new(Method::SetPilot);
-                        pilot.set_speed(self.pilot.speed);
-                    }
+                    let _speed = ui.add(Slider::new(&mut self.pilot.speed, 0.2..=2.0));
                 });
 
                 ui.horizontal(|ui| {
