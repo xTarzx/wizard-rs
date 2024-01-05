@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 use strum::IntoEnumIterator;
 
 use bulb::Bulb;
