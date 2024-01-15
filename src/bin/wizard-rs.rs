@@ -1,16 +1,12 @@
 #![windows_subsystem = "windows"]
 use strum::IntoEnumIterator;
 
-use bulb::Bulb;
-use eframe::egui::{self, Slider};
-use pilot::{Method, Pilot};
-use scenes::Scene;
-use wizard::Wizard;
-
-pub mod bulb;
-pub mod pilot;
-pub mod scenes;
-pub mod wizard;
+use eframe::egui::{self, DragValue, Slider};
+use wizard_rs::bulb::Bulb;
+use wizard_rs::pilot::{Method, Pilot};
+use wizard_rs::program::Action;
+use wizard_rs::scenes::Scene;
+use wizard_rs::wizard::Wizard;
 
 fn main() -> Result<(), eframe::Error> {
     // create eframe window
@@ -24,6 +20,7 @@ fn main() -> Result<(), eframe::Error> {
 struct Config {
     bulbs: Vec<Bulb>,
     selected: Option<usize>,
+    program: Vec<Action>,
 }
 
 impl Default for Config {
@@ -31,6 +28,7 @@ impl Default for Config {
         Self {
             bulbs: Vec::new(),
             selected: None,
+            program: Vec::new(),
         }
     }
 }
@@ -40,6 +38,7 @@ struct App {
     selected: Option<usize>,
     pilot: Pilot,
     config_path: std::path::PathBuf,
+    program: Vec<Action>,
 }
 
 impl App {
@@ -50,6 +49,7 @@ impl App {
             let bulbs: Vec<Bulb> = config.bulbs;
             self.selected = config.selected;
             *self.wiz.bulbs.lock().unwrap() = bulbs;
+            self.program = config.program;
         }
     }
 
@@ -61,6 +61,7 @@ impl App {
                 let config = Config {
                     bulbs: self.wiz.bulbs.lock().unwrap().clone(),
                     selected: self.selected,
+                    program: self.program.clone(),
                 };
 
                 if serde_json::to_writer(file, &config).is_err() {
@@ -88,6 +89,7 @@ impl Default for App {
             selected: None,
             pilot: Pilot::default(),
             config_path: config_path,
+            program: Vec::new(),
         };
 
         app.load_config();
@@ -190,6 +192,133 @@ impl eframe::App for App {
                     }
                 }
             }
+        });
+
+        egui::Window::new("Daemon").vscroll(true).show(ctx, |ui| {
+            let daemon = self.wiz.daemon.clone();
+
+            ui.label(format!(
+                "Daemon: {}",
+                match daemon.lock().unwrap().is_some() {
+                    true => "connected",
+                    false => "not connected",
+                }
+            ));
+
+            ui.horizontal(|ui| {
+                if ui.button("connect").clicked() {
+                    self.wiz.daemon_connect();
+                };
+
+                if ui.button("shutdown").clicked() {
+                    self.wiz.daemon_shutdown();
+                }
+            });
+
+            ui.separator();
+
+            if ui.button("run").clicked() {
+                if !self.program.is_empty() {
+                    let bulb_ip = self.wiz.bulbs.lock().unwrap()[self.selected.unwrap()]
+                        .ip
+                        .clone();
+                    self.wiz.daemon_run_program(self.program.clone(), bulb_ip);
+                }
+            }
+
+            ui.separator();
+
+            let mut to_delete: Option<usize> = None;
+            let mut to_swap: Option<(usize, usize)> = None;
+            let program_len = self.program.len();
+            for (idx, action) in self.program.iter_mut().enumerate() {
+                match action {
+                    Action::Sleep(s) => {
+                        ui.horizontal(|ui| {
+                            ui.label(format!("sleep: "));
+
+                            ui.add(DragValue::new(s).speed(0.1).clamp_range(0.0..=10.0));
+
+                            if ui.button("remove").clicked() {
+                                to_delete = Some(idx);
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            if ui.button("up").clicked() {
+                                if idx > 0 {
+                                    to_swap = Some((idx, idx - 1));
+                                }
+                            }
+
+                            if ui.button("down").clicked() {
+                                if idx < program_len - 1 {
+                                    to_swap = Some((idx, idx + 1));
+                                }
+                            }
+                        });
+                    }
+                    Action::SetPilot(p) => {
+                        ui.label(format!("set pilot"));
+
+                        ui.checkbox(&mut p.state, "state");
+
+                        ui.horizontal(|ui| {
+                            if ui.button("rgb").clicked() {
+                                if p.rgb.is_none() {
+                                    p.rgb = Some([0.0, 0.0, 255.0]);
+                                } else {
+                                    p.rgb = None;
+                                }
+                            }
+
+                            if let Some(rgb) = &mut p.rgb {
+                                ui.color_edit_button_rgb(rgb);
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("brightness");
+                            ui.add(Slider::new(&mut p.brightness, 0.1..=1.0));
+                        });
+
+                        ui.horizontal(|ui| {
+                            if ui.button("up").clicked() {
+                                if idx > 0 {
+                                    to_swap = Some((idx, idx - 1));
+                                }
+                            }
+
+                            if ui.button("down").clicked() {
+                                if idx < program_len - 1 {
+                                    to_swap = Some((idx, idx + 1));
+                                }
+                            }
+                        });
+                    }
+                }
+                ui.separator();
+            }
+
+            if let Some(idx) = to_delete {
+                self.program.remove(idx);
+            }
+
+            if let Some((idx1, idx2)) = to_swap {
+                self.program.swap(idx1, idx2);
+            }
+
+            ui.menu_button("add", |ui| {
+                if ui.button("sleep").clicked() {
+                    self.program.push(Action::Sleep(1));
+                    ui.close_menu();
+                }
+
+                if ui.button("set pilot").clicked() {
+                    self.program.push(Action::SetPilot(Pilot::default()));
+                    ui.close_menu();
+                }
+            });
         });
     }
 }

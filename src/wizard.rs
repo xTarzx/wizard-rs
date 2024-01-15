@@ -1,18 +1,25 @@
 use ipnet::Ipv4Net;
 use socket2::{Domain, Protocol, Socket, Type};
 
+use std::io::Write;
+
 use local_ip_address::local_ip;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::{mem::MaybeUninit, net::SocketAddr, time::Duration};
 
+use interprocess::local_socket::LocalSocketStream;
+
+use crate::program::Action;
 use crate::{
     bulb::Bulb,
+    daemon::{Msg, DAEMONNAME},
     pilot::{Method, Pilot},
 };
-const WIZARD_PORT: u16 = 38899;
+pub const WIZARD_PORT: u16 = 38899;
 pub struct Wizard {
     socket: Arc<Mutex<Socket>>,
+    pub daemon: Arc<Mutex<Option<LocalSocketStream>>>,
     pub bulbs: Arc<Mutex<Vec<Bulb>>>,
 }
 
@@ -30,7 +37,41 @@ impl Wizard {
 
         Wizard {
             socket: Arc::new(Mutex::new(socket)),
+            daemon: Arc::new(Mutex::new(LocalSocketStream::connect(DAEMONNAME).ok())),
             bulbs: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn daemon_connect(&self) {
+        let daemon = self.daemon.clone();
+
+        *daemon.lock().unwrap() = LocalSocketStream::connect(DAEMONNAME).ok();
+    }
+
+    pub fn daemon_shutdown(&self) {
+        let daemon = self.daemon.clone();
+
+        let daemon = daemon.lock().unwrap().take();
+
+        match daemon {
+            Some(mut daemon) => {
+                let msg = Msg::Stop;
+                let data = serde_json::to_string(&msg).unwrap();
+                let _ = daemon.write_all(data.as_bytes());
+            }
+            None => {}
+        }
+    }
+
+    pub fn daemon_run_program(&self, program: Vec<Action>, bulb_ip: String) {
+        let daemon = self.daemon.clone();
+
+        let mut daemon = daemon.lock().unwrap();
+
+        if let Some(daemon) = daemon.as_mut() {
+            let msg = Msg::Run(program, bulb_ip);
+            let data = serde_json::to_string(&msg).unwrap();
+            let _ = daemon.write_all(data.as_bytes());
         }
     }
 

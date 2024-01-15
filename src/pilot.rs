@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::scenes::Scene;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Method {
     SetPilot,
     GetDevInfo,
@@ -17,7 +18,7 @@ impl Method {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pilot {
     pub method: Method,
     pub state: bool,
@@ -109,7 +110,6 @@ impl Pilot {
         }
 
         let json = Value::Object(map);
-        dbg!(json.to_string());
         json.to_string()
     }
 }

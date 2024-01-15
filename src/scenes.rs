@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
-#[derive(Debug, Clone, Copy, EnumIter)]
+#[derive(Debug, Clone, Copy, EnumIter, Serialize, Deserialize)]
 pub enum Scene {
     Ocean = 1,
     Romance,

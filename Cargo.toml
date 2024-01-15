@@ -17,3 +17,8 @@ local-ip-address = "0.5.6"
 strum = "0.25"
 strum_macros = "0.25"
 ipnet = "2.9.0"
+interprocess = "1.2.1"
+ctrlc = "3.4.2"
+nix = "0.27.1"
+egui_extras = { version = "0.25.0", features = ["all_loaders"] }
+egui = "0.25.0"
