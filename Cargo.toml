@@ -22,3 +22,11 @@ ctrlc = "3.4.2"
 nix = "0.27.1"
 egui_extras = { version = "0.25.0", features = ["all_loaders"] }
 egui = "0.25.0"
+
+
+[profile.release]
+opt-level = 'z'   # Optimize for size
+lto = true        # Enable link-time optimization
+codegen-units = 1 # Reduce number of codegen units to increase optimizations
+panic = 'abort'   # Abort on panic
+strip = true      # Strip symbols from binary
