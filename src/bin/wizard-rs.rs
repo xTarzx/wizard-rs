@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 use strum::IntoEnumIterator;
 
-use eframe::egui::{self, DragValue, Slider};
+use eframe::egui::{self, ComboBox, DragValue, Slider};
 use wizard_rs::bulb::Bulb;
 use wizard_rs::pilot::{Method, Pilot};
 use wizard_rs::program::Action;
@@ -35,6 +35,7 @@ impl Default for Config {
 
 struct App {
     wiz: Wizard,
+    bulbs: Vec<Bulb>,
     selected: Option<usize>,
     pilot: Pilot,
     config_path: std::path::PathBuf,
@@ -46,9 +47,8 @@ impl App {
         let file = std::fs::File::open(&self.config_path);
         if let Ok(file) = file {
             let config: Config = serde_json::from_reader(file).unwrap_or_default();
-            let bulbs: Vec<Bulb> = config.bulbs;
+            self.bulbs = config.bulbs;
             self.selected = config.selected;
-            *self.wiz.bulbs.lock().unwrap() = bulbs;
             self.program = config.program;
         }
     }
@@ -59,7 +59,7 @@ impl App {
         match file {
             Ok(file) => {
                 let config = Config {
-                    bulbs: self.wiz.bulbs.lock().unwrap().clone(),
+                    bulbs: self.bulbs.clone(),
                     selected: self.selected,
                     program: self.program.clone(),
                 };
@@ -86,6 +86,7 @@ impl Default for App {
 
         let mut app = Self {
             wiz: Wizard::new(),
+            bulbs: Vec::new(),
             selected: None,
             pilot: Pilot::default(),
             config_path: config_path,
@@ -113,30 +114,68 @@ impl eframe::App for App {
 
         egui::Window::new("Bulbs").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("Discover").clicked() {
-                    self.selected = None;
-                    self.wiz.discover();
-                }
+                ui.label("selected: ");
 
                 if let Some(idx) = self.selected {
-                    let bulb = &self.wiz.bulbs.lock().unwrap()[idx];
+                    let bulb = &self.bulbs[idx];
                     ui.label(format!("{} {}", &bulb.name, &bulb.ip));
                 }
             });
-
-            for (idx, bulb) in self.wiz.bulbs.lock().unwrap().iter_mut().enumerate() {
+            let mut to_delete: Option<usize> = None;
+            for (idx, bulb) in self.bulbs.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     ui.text_edit_singleline(&mut bulb.name);
+                    if bulb.name.is_empty() {
+                        bulb.name = bulb.mac.clone();
+                    }
                     if ui.button("select").clicked() {
                         self.selected = Some(idx);
                     }
+
+                    if ui.button("x").clicked() {
+                        to_delete = Some(idx);
+                    }
                 });
+            }
+
+            if let Some(idx) = to_delete {
+                if let Some(selected) = self.selected {
+                    if idx < selected {
+                        self.selected = Some(selected - 1);
+                    } else if idx == selected {
+                        self.selected = None;
+                    }
+                }
+
+                self.bulbs.remove(idx);
+            }
+
+            ui.separator();
+
+            if ui.button("Discover").clicked() {
+                self.wiz.discover();
+            }
+
+            if let Ok(bulbs) = self.wiz.bulbs.try_lock() {
+                for (idx, bulb) in bulbs.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(&bulb.mac);
+                        ui.label(&bulb.ip);
+                        if ui.button("add").clicked() {
+                            self.bulbs.push(Bulb::new(
+                                bulb.ip.clone(),
+                                bulb.mac.clone(),
+                                bulb.mac.clone(),
+                            ));
+                        }
+                    });
+                }
             }
         });
 
         egui::Window::new("Control").show(ctx, |ui| {
             if let Some(idx) = self.selected {
-                let bulb = &self.wiz.bulbs.lock().unwrap()[idx];
+                let bulb = &self.bulbs[idx];
                 ui.label(format!("{} {}", &bulb.name, &bulb.ip));
 
                 ui.horizontal(|ui| {
@@ -179,7 +218,7 @@ impl eframe::App for App {
 
         egui::Window::new("Scenes").vscroll(true).show(ctx, |ui| {
             if let Some(idx) = self.selected {
-                let bulb = &self.wiz.bulbs.lock().unwrap()[idx];
+                let bulb = &self.bulbs[idx];
                 ui.label(format!("{} {}", &bulb.name, &bulb.ip));
 
                 for scene in Scene::iter() {
@@ -219,9 +258,7 @@ impl eframe::App for App {
 
             if ui.button("run").clicked() {
                 if !self.program.is_empty() {
-                    let bulb_ip = self.wiz.bulbs.lock().unwrap()[self.selected.unwrap()]
-                        .ip
-                        .clone();
+                    let bulb_ip = self.bulbs[self.selected.unwrap()].ip.clone();
                     self.wiz.daemon_run_program(self.program.clone(), bulb_ip);
                 }
             }
