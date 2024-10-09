@@ -4,7 +4,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 use std::io::Write;
 
 use local_ip_address::local_ip;
-use std::sync::{Arc, Mutex};
+use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc, Mutex};
 use std::thread;
 use std::{mem::MaybeUninit, net::SocketAddr, time::Duration};
 
@@ -21,6 +21,7 @@ pub struct Wizard {
     socket: Arc<Mutex<Socket>>,
     pub daemon: Arc<Mutex<Option<LocalSocketStream>>>,
     pub bulbs: Arc<Mutex<Vec<Bulb>>>,
+    pub searching: Arc<AtomicBool>,
 }
 
 impl Wizard {
@@ -39,6 +40,7 @@ impl Wizard {
             socket: Arc::new(Mutex::new(socket)),
             daemon: Arc::new(Mutex::new(LocalSocketStream::connect(DAEMONNAME).ok())),
             bulbs: Arc::new(Mutex::new(Vec::new())),
+            searching: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -100,7 +102,9 @@ impl Wizard {
 
         let nbulbs = self.bulbs.clone();
         let nsocket = self.socket.clone();
+        let searching = self.searching.clone();
         thread::spawn(move || {
+            searching.store(true, Ordering::SeqCst);
             let pilot = Pilot::new(Method::GetDevInfo);
             let addr: SocketAddr = format!("{}:{}", broadcast_addr, WIZARD_PORT)
                 .parse()
@@ -146,6 +150,7 @@ impl Wizard {
             }
 
             *nbulbs.lock().unwrap() = bulbs;
+            searching.store(false, Ordering::SeqCst);
         });
     }
 }
