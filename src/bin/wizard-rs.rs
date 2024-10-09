@@ -8,6 +8,7 @@ use wizard_rs::program::Action;
 use wizard_rs::scenes::Scene;
 use wizard_rs::wizard::Wizard;
 
+use std::sync::atomic::Ordering;
 fn main() -> Result<(), eframe::Error> {
     // create eframe window
     let mut options = eframe::NativeOptions::default();
@@ -98,7 +99,6 @@ impl Default for App {
         app
     }
 }
-
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -152,9 +152,16 @@ impl eframe::App for App {
 
             ui.separator();
 
-            if ui.button("Discover").clicked() {
-                self.wiz.discover();
-            }
+            ui.horizontal(|ui| {
+                if ui.button("Discover").clicked() {
+                    self.wiz.discover();
+                }
+
+                let searching = self.wiz.searching.load(Ordering::SeqCst);
+                if searching {
+                    ui.label("searching...");
+                }
+            });
 
             if let Ok(bulbs) = self.wiz.bulbs.try_lock() {
                 for (idx, bulb) in bulbs.iter().enumerate() {
